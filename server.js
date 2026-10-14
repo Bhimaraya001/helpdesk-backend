@@ -91,7 +91,7 @@ app.post("/api/tickets", async (req, res) => {
     });
   }
 
-  if (!["Low", "Medium", "High"].includes(priority)) {
+  if (!["Low", "Medium", "High", "Urgent"].includes(priority)) {
     return res.status(400).json({ message: "Invalid priority" });
   }
 
