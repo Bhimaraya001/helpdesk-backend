@@ -1,6 +1,10 @@
-
+const cookieParser = require("cookie-parser");
 const express = require("express");
 const cors = require("cors");
+const {
+  authenticateToken,
+  requireRole,
+} = require("./middleware/authMiddleware");
 require("dotenv").config();
 
 const pool = require("./db");
@@ -8,8 +12,21 @@ const pool = require("./db");
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-app.use(cors({ origin: "http://localhost:5173" }));
+app.use(
+  cors({
+    origin: "http://localhost:5173",
+    credentials: true,
+  })
+);
+
 app.use(express.json({ limit: "3mb" }));
+app.use(cookieParser());
+
+if (!process.env.JWT_SECRET) {
+  throw new Error("JWT_SECRET is missing from the .env file");
+}
+
+app.use("/api/auth", require("./routes/auth"));
 
 // Health checks
 app.get("/", (req, res) => {
