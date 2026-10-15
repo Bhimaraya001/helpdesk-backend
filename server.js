@@ -238,9 +238,10 @@ app.post(
   }
 );
 
-// --------------------------------------------------
-// UPDATE TICKET STATUS — ADMIN ONLY
-// --------------------------------------------------
+
+ // --------------------------------------------------
+ // UPDATE TICKET STATUS — ADMIN ONLY + HISTORY
+ // --------------------------------------------------
 app.patch(
   "/api/tickets/:id/status",
   authenticateToken,
@@ -261,8 +262,43 @@ app.patch(
       });
     }
 
+    const client = await pool.connect();
+
     try {
-      const result = await pool.query(
+      await client.query("BEGIN");
+
+      // Lock this ticket while its status is being updated.
+      const ticketResult = await client.query(
+        `SELECT id, status
+         FROM tickets
+         WHERE id = $1
+         FOR UPDATE`,
+        [id]
+      );
+
+      if (ticketResult.rows.length === 0) {
+        await client.query("ROLLBACK");
+        return res.status(404).json({
+          message: "Ticket not found",
+        });
+      }
+
+      const ticket = ticketResult.rows[0];
+      const oldStatus = ticket.status;
+
+      // Avoid recording duplicate history for unchanged status.
+      if (oldStatus === status) {
+        await client.query("COMMIT");
+
+        return res.json({
+          ...ticket,
+          status: oldStatus,
+          message: "Ticket status is unchanged",
+        });
+      }
+
+      // Update the ticket status.
+      const updatedResult = await client.query(
         `UPDATE tickets
          SET status = $1
          WHERE id = $2
@@ -270,17 +306,104 @@ app.patch(
         [status, id]
       );
 
-      if (result.rows.length === 0) {
+      // Record who changed it and when.
+      await client.query(
+        `INSERT INTO ticket_history
+           (ticket_id, old_status, new_status, changed_by)
+         VALUES ($1, $2, $3, $4)`,
+        [
+          id,
+          oldStatus,
+          status,
+          req.user.id,
+        ]
+      );
+
+      await client.query("COMMIT");
+
+      return res.json(updatedResult.rows[0]);
+    } catch (error) {
+      try {
+        await client.query("ROLLBACK");
+      } catch (rollbackError) {
+        console.error("Transaction rollback error:", rollbackError.message);
+      }
+
+      console.error("Update ticket/history error:", error.message);
+
+      return res.status(500).json({
+        message: "Could not update ticket status",
+      });
+    } finally {
+      client.release();
+    }
+  }
+);
+
+ // --------------------------------------------------
+ // GET TICKET HISTORY — ADMIN OR TICKET OWNER
+ // --------------------------------------------------
+app.get(
+  "/api/tickets/:id/history",
+  authenticateToken,
+  async (req, res) => {
+    const id = Number(req.params.id);
+
+    if (!Number.isSafeInteger(id) || id <= 0) {
+      return res.status(400).json({
+        message: "Invalid ticket ID",
+      });
+    }
+
+    try {
+      // Find the ticket and its owner.
+      const ticketResult = await pool.query(
+        `SELECT id, user_id
+         FROM tickets
+         WHERE id = $1`,
+        [id]
+      );
+
+      if (ticketResult.rows.length === 0) {
         return res.status(404).json({
           message: "Ticket not found",
         });
       }
 
-      res.json(result.rows[0]);
+      const ticket = ticketResult.rows[0];
+      const isAdmin = req.user.role === "ADMIN";
+      const isOwner =
+        ticket.user_id != null &&
+        String(ticket.user_id) === String(req.user.id);
+
+      // Customers may only see their own ticket history.
+      if (!isAdmin && !isOwner) {
+        return res.status(403).json({
+          message: "You are not allowed to view this ticket history",
+        });
+      }
+
+      const historyResult = await pool.query(
+        `SELECT
+           id,
+           ticket_id,
+           old_status,
+           new_status,
+           changed_by,
+           comment,
+           created_at
+         FROM ticket_history
+         WHERE ticket_id = $1
+         ORDER BY created_at ASC, id ASC`,
+        [id]
+      );
+
+      return res.json(historyResult.rows);
     } catch (error) {
-      console.error("Update ticket error:", error.message);
-      res.status(500).json({
-        message: "Could not update ticket status",
+      console.error("Get ticket history error:", error.message);
+
+      return res.status(500).json({
+        message: "Could not retrieve ticket history",
       });
     }
   }
