@@ -9,7 +9,6 @@ async function authenticateToken(req, res, next) {
       message: "Authentication required. Please log in.",
     });
   }
-
   try {
     const payload = jwt.verify(token, process.env.JWT_SECRET);
 
