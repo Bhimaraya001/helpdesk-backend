@@ -20,9 +20,22 @@ if (!process.env.JWT_SECRET) {
 }
 
 // Middleware
+// Middleware
+const allowedOrigins = [
+  "http://localhost:5173",
+  "https://main.dmed77d60bunk.amplifyapp.com",
+];
+
 app.use(
   cors({
-    origin: "http://localhost:5173",
+    origin: function (origin, callback) {
+      // Allow requests without an Origin header, such as health checks.
+      if (!origin || allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+
+      return callback(new Error("Origin not allowed by CORS"));
+    },
     credentials: true,
   })
 );
