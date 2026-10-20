@@ -20,12 +20,10 @@ if (!process.env.JWT_SECRET) {
 }
 
 // Middleware
-app.use(
-  cors({
-    origin: "http://localhost:5173",
-    credentials: true,
-  })
-);
+app.use(cors({
+  origin: "https://helpdesk-frontend-j5lr.onrender.com",
+  credentials: true
+}));
 
 app.use(express.json({ limit: "3mb" }));
 app.use(cookieParser());
