@@ -20,10 +20,25 @@ if (!process.env.JWT_SECRET) {
 }
 
 // Middleware
-app.use(cors({
-  origin: "https://helpdesk-frontend-j5lr.onrender.com",
-  credentials: true
-}));
+
+const allowedOrigins = [
+  "http://localhost:5173",
+  "https://helpdesk-frontend-j5lr.onrender.com",
+];
+
+app.use(
+  cors({
+    origin: function (origin, callback) {
+      if (!origin || allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+
+      return callback(new Error("Origin not allowed by CORS"));
+    },
+    credentials: true,
+  })
+);
+
 
 app.use(express.json({ limit: "3mb" }));
 app.use(cookieParser());

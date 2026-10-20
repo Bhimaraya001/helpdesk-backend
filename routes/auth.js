@@ -22,9 +22,9 @@ function createToken(user) {
 
 function setAuthCookie(res, token) {
   res.cookie(COOKIE_NAME, token, {
-    httpOnly: true,
+     httpOnly: true,
     secure: IS_PRODUCTION,
-    sameSite: "lax",
+    sameSite: IS_PRODUCTION ? "none" : "lax",
     maxAge: 60 * 60 * 1000,
     path: "/",
   });
@@ -153,7 +153,7 @@ router.get("/me", async (req, res) => {
       res.clearCookie(COOKIE_NAME, {
         httpOnly: true,
         secure: IS_PRODUCTION,
-        sameSite: "lax",
+        sameSite: IS_PRODUCTION ? "none" : "lax",
         path: "/",
       });
       return res.status(401).json({ message: "Account not found." });
@@ -164,7 +164,7 @@ router.get("/me", async (req, res) => {
     res.clearCookie(COOKIE_NAME, {
       httpOnly: true,
       secure: IS_PRODUCTION,
-      sameSite: "lax",
+      sameSite: IS_PRODUCTION ? "none" : "lax",
       path: "/",
     });
     return res.status(401).json({ message: "Session is invalid or expired." });
